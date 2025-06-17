@@ -74,3 +74,21 @@ elif sourceSelect == "Upload Dataset":
         df = pd.read_csv(file)
         st.success("CSV Uploaded")
         st.dataframe(df.head())
+
+# Features start here
+
+st.subheader("Dataset Overview")
+
+st.write(f"**Filename:** `{os.path.basename(csv_files[0])}`")
+st.write(f"**Shape**:** {df.shape[0]} rows x {df.shape[1]} columns")
+st.write(f"**Memory Usage:** {df.memory_usage(deep=True).sum() / 1024:.2f} KB")
+
+st.subheader("Column Info")
+col_info = pd.DataFrame({
+    "Column": df.columns,
+    "Data Type": df.dtypes,
+    "Null Values": df.isnull().sum(),
+    "Unique Values": df.nunique()
+})
+st.dataframe(col_info)
+
