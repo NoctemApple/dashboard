@@ -1,2 +1,5 @@
 # Ignores kaggle.json
 kaggle.json
+
+# Ignore data folder
+/data
