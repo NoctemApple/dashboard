@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import os
-import subprocess
 import zipfile
 import glob
 import kaggle
@@ -9,11 +8,12 @@ from kaggle.api.kaggle_api_extended import KaggleApi
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+st.title("Noctem's Dashboard")
+
 # Kaggle check
 
 KAGGLE_REPO_JSON = "kaggle.json"
 if os.path.exists(KAGGLE_REPO_JSON):
-    st.success("Found kaggle.json")
     os.environ["KAGGLE_CONFIG_DIR"] = "."
 else:
     st.warning("No kaggle.json found")
@@ -26,11 +26,12 @@ except Exception as e:
 
 # UI Starts Here
 
-st.title("Noctem's Dashboard")
 st.markdown("Upload a dataset or Paste a Kaggle Link")
 sourceSelect = st.radio("Choose source", ["Kaggle Dataset", "Upload Dataset"])
 
 os.makedirs("data", exist_ok=True)
+
+# Selector for source of Data Kaggle or Upload
 
 if sourceSelect == "Kaggle Dataset":
     kaggle_url = st.text_input("Insert link here:",
@@ -106,7 +107,7 @@ if 'df' in st.session_state:
     st.subheader("Column Info")
     col_info = pd.DataFrame({
         "Column": df.columns,
-        "Data Type": df.dtypes,
+        "Data Type": df.dtypes.astype(str),
         "Null Values": df.isnull().sum(),
         "Unique Values": df.nunique()
     })
@@ -124,9 +125,15 @@ if 'df' in st.session_state:
     st.dataframe(df.describe().T)
 
     st.subheader("Missing Data Map")
-    fig, ax = plt.subplots()
-    sns.heatmap(df.isnull().iloc[:, :30], cbar=False, cmap="viridis", ax=ax)
-    st.pyplot(fig)
+    subset_cols = df.columns[:30] if df.shape[1] > 30 else df.columns
+    missing_count = df[subset_cols].isnull().sum().sum()
+    
+    if missing_count == 0:
+        st.info("No missing values found.")
+    else:
+        fig, ax = plt.subplots()
+        sns.heatmap(df[subset_cols].isnull(), cbar=False, cmap=sns.color_palette(["blue", "red"]), ax=ax)
+        st.pyplot(fig)
 
     st.subheader("Quick Charts")
     selected_col = st.selectbox("Pick a column to plot", df.columns)
@@ -138,3 +145,33 @@ if 'df' in st.session_state:
 else:
     st.info("Upload or download a dataset first")
 
+# For correlation
+if 'df' in st.session_state:
+    df = st.session_state.df
+    if df.select_dtypes(include='number').shape[1] > 1:
+        st.subheader("Correlation Heatmap")
+        fig, ax = plt.subplots()
+        sns.heatmap(df.corr(numeric_only=True), annot=True, cmap="coolwarm", ax=ax)
+        st.pyplot(fig)
+
+    if st.checkbox("Enable Filters"):
+        filter_col = st.selectbox("Filter Column", df.columns)
+        unique_vals = df[filter_col].dropna().unique()
+        selected_val = st.selectbox("Select value", unique_vals)
+        df_filtered = df[df[filter_col] == selected_val]
+        st.write(f"Filtered {len(df_filtered)} rows")
+        st.dataframe(df_filtered.head(10))
+
+    st.download_button("Downloaed Cleaned CSV", df.to_csv(index=False), "cleaned_data.csv")
+
+# QoL stuff
+
+if st.button("Clear Dataset"):
+    for key in ['df', 'filename', 'selected_csv_to_load']:
+        st.session_state.pop(key, None)
+    st.rerun()
+
+if st.button("Clear All Downloaded Files"):
+    for f in glob.glob("data/*"):
+        os.remove(f)
+    st.success("Cleared all files in 'data/'")
