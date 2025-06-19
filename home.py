@@ -124,6 +124,10 @@ if 'df' in st.session_state:
     st.subheader("Descriptive Statistics")
     st.dataframe(df.describe().T)
 
+    st.subheader("Feature Engineering")
+    
+    
+
     st.subheader("Missing Data Map")
     subset_cols = df.columns[:30] if df.shape[1] > 30 else df.columns
     missing_count = df[subset_cols].isnull().sum().sum()

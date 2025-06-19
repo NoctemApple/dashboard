@@ -3,3 +3,6 @@ kaggle.json
 
 # Ignore data folder
 /data
+
+# Ignore models folder
+/models
