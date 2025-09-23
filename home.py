@@ -1,100 +1,46 @@
 import streamlit as st
 import pandas as pd
 import os
-import zipfile
 import glob
-import kaggle
-from kaggle.api.kaggle_api_extended import KaggleApi
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 st.title("Noctem's Dashboard")
 
-# Kaggle check
-
-KAGGLE_REPO_JSON = "kaggle.json"
-if os.path.exists(KAGGLE_REPO_JSON):
-    os.environ["KAGGLE_CONFIG_DIR"] = "."
-else:
-    st.warning("No kaggle.json found")
-
-try:
-    api = KaggleApi()
-    api.authenticate()
-except Exception as e:
-    st.error(f"Kaggle API failed to Authenticate: {e}")
-
-# UI Starts Here
-
-st.markdown("Upload a dataset or Paste a Kaggle Link")
-sourceSelect = st.radio("Choose source", ["Kaggle Dataset", "Upload Dataset"])
-
+# Always ensure data folder exists
 os.makedirs("data", exist_ok=True)
 
-# Selector for source of Data Kaggle or Upload
+st.markdown("Upload a dataset to get started")
 
-if sourceSelect == "Kaggle Dataset":
-    kaggle_url = st.text_input("Insert link here:",
-                               placeholder="https://www.kaggle.com/datasets/blastchar/telco-customer-churn")
-
-    if st.button("Download") and kaggle_url.strip():
-        try:
-            parts = kaggle_url.strip().split("/")
-            slug = f"{parts[-2]}/{parts[-1]}" if "datasets" in parts else None
-
-            if not slug:
-                st.error("Invalid Kaggle dataset URL")
-            else:
-                st.info(f"Downloading dataset `{slug}`...")
-                output_path = "data/kaggle_dataset.zip"
-
-                api.dataset_download_files(slug, path="data", quiet=False)
-
-                zip_files = glob.glob("data/*.zip")
-                if not zip_files:
-                    st.error("No zip file downloaded")
-                else:
-                    zip_path = zip_files[0]
-
-                    with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                        zip_ref.extractall("data")
-                    os.remove(zip_path)
-
-                    st.success("Dataset downloaded and extracted")
-
-        except Exception as e:
-            st.error(f"error in getting Kaggle dataset: {e}")
-
+if 'df' not in st.session_state:
     csv_files = glob.glob("data/*.csv")
     if csv_files:
-        selected_csv = st.selectbox("Choose a CSV file",[os.path.basename(f) for f in csv_files])
-        
-        if st.button("Load Selected CSV"):
-            st.session_state.selected_csv_to_load = selected_csv
-        
-    if "selected_csv_to_load" in st.session_state:
-        filepath = os.path.join("data", st.session_state.selected_csv_to_load)
-        if os.path.exists(filepath):
-            df = pd.read_csv(filepath)
-            st.session_state.df = df
-            st.session_state.filename = st.session_state.selected_csv_to_load
-            st.success(f"Loaded: {st.session_state.selected_csv_to_load}")
-        else:
-            st.warning("Selected file no longer exists")
-    
-    elif not csv_files:
-        st.warning("No CSV file found")
-
-elif sourceSelect == "Upload Dataset":
-    file = st.file_uploader("Upload CSV file", type="csv")
-    if file is not None:
-        df = pd.read_csv(file)
+        latest = max(csv_files, key=os.path.getctime)
+        df = pd.read_csv(latest)
         st.session_state.df = df
-        st.session_state.filename = file.name
-        st.success(f"CSV Uploaded: {file.name}")
+        st.session_state.filename = os.path.basename(latest)
+        st.session_state.selected_csv_to_load = os.path.basename(latest)
+        st.success(f"Previously Loaded: {st.session_state.filename}")
 
-# Features start here
+# Upload Dataset
+file = st.file_uploader("Upload CSV file", type="csv")
+if file is not None:
+    # Define save path
+    save_path = os.path.join("data", file.name)
 
+    # Save uploaded file permanently in 'data/'
+    with open(save_path, "wb") as f:
+        f.write(file.getbuffer())
+
+    # Load into DataFrame
+    df = pd.read_csv(save_path)
+    st.session_state.df = df
+    st.session_state.filename = file.name
+    st.session_state.selected_csv_to_load = file.name
+
+    st.success(f"CSV uploaded and saved to 'data/' as {file.name}")
+
+# If dataset exists in session
 if 'df' in st.session_state:
     df = st.session_state.df
     filename = st.session_state.get("filename", "Uploaded Data")
@@ -115,7 +61,6 @@ if 'df' in st.session_state:
 
     st.subheader("Data Preview")
     columns = st.multiselect("Select columns to view", df.columns.tolist(), default=df.columns.tolist()[:5])
-    
     if columns:
         st.dataframe(df[columns].head(10))
     else:
@@ -124,14 +69,10 @@ if 'df' in st.session_state:
     st.subheader("Descriptive Statistics")
     st.dataframe(df.describe().T)
 
-    st.subheader("Feature Engineering")
-    
-    
-
     st.subheader("Missing Data Map")
     subset_cols = df.columns[:30] if df.shape[1] > 30 else df.columns
     missing_count = df[subset_cols].isnull().sum().sum()
-    
+
     if missing_count == 0:
         st.info("No missing values found.")
     else:
@@ -146,18 +87,14 @@ if 'df' in st.session_state:
     else:
         st.bar_chart(df[selected_col].value_counts().head(10))
 
-else:
-    st.info("Upload or download a dataset first")
-
-# For correlation
-if 'df' in st.session_state:
-    df = st.session_state.df
+    # Correlation Heatmap
     if df.select_dtypes(include='number').shape[1] > 1:
         st.subheader("Correlation Heatmap")
         fig, ax = plt.subplots()
         sns.heatmap(df.corr(numeric_only=True), annot=True, cmap="coolwarm", ax=ax)
         st.pyplot(fig)
 
+    # Filtering
     if st.checkbox("Enable Filters"):
         filter_col = st.selectbox("Filter Column", df.columns)
         unique_vals = df[filter_col].dropna().unique()
@@ -166,16 +103,21 @@ if 'df' in st.session_state:
         st.write(f"Filtered {len(df_filtered)} rows")
         st.dataframe(df_filtered.head(10))
 
-    st.download_button("Downloaed Cleaned CSV", df.to_csv(index=False), "cleaned_data.csv")
+    # Download cleaned CSV
+    st.download_button("Download Cleaned CSV", df.to_csv(index=False), "cleaned_data.csv")
+
+else:
+    st.info("Upload a dataset first")
 
 # QoL stuff
+st.sidebar.header("Quality of Life Actions")
 
-if st.button("Clear Dataset"):
+if st.sidebar.button("Clear Dataset"):
     for key in ['df', 'filename', 'selected_csv_to_load']:
         st.session_state.pop(key, None)
     st.rerun()
 
-if st.button("Clear All Downloaded Files"):
+if st.sidebar.button("Clear All Files in Data Folder"):
     for f in glob.glob("data/*"):
         os.remove(f)
     st.success("Cleared all files in 'data/'")

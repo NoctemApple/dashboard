@@ -1,20 +1,13 @@
-## OH HI
+# OH HI
 
-Currently work in progress.
+This is an intergrated dashboard I am making
 
-This is an intergrated ML dashboard made using Streamlit.
+## Purpose of branch
 
-The goals of this project are the following:
+The branch is specifically made for a dataset I got for
+essentially a mock case study with a friend
 
-* Uses datasets that are either uploaded or fetched from Kaggle
-
-* Clean, filter, and explore data with visual aids, and summaries
-
-* View missing data maps, heatmaps, and quick charts
-
-* Train and export machine learning models (WIP)
-
-# How to run
+## How to run
 
 streamlit run home.py
 
@@ -22,3 +15,4 @@ or
 
 python3 -m streamlit run home.py
 
+## To do

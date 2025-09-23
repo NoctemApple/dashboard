@@ -26,6 +26,11 @@ if feature_columns:
     st.write("**Selected Features Preview:**")
     st.dataframe(df[feature_columns + [target_column]].head(10))
 
+# After you load your dataset in model_builder.py
+st.subheader("Dataset Preview")
+st.dataframe(df.head())  # Show first 5 rows
+
+
 # --- Sidebar Model Settings ---
 st.sidebar.header("Model Settings")
 n_estimators = st.sidebar.slider("Number of Trees", 10, 500, 100)
